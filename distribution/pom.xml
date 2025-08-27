@@ -460,6 +460,8 @@
                                         <argument>org.apache.druid.extensions.contrib:druid-rabbit-indexing-service</argument>
                                         <argument>-c</argument>
                                         <argument>org.apache.druid.extensions.contrib:grpc-query</argument>
+                                        <argument>-c</argument>
+                                        <argument>org.apache.druid.extensions.contrib:druid-pulsar-indexing-service</argument>
                                     </arguments>
                                 </configuration>
                             </execution>

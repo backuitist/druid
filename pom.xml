@@ -76,6 +76,7 @@
         <aether.version>0.9.0.M2</aether.version>
         <apache.curator.version>5.5.0</apache.curator.version>
         <apache.kafka.version>3.9.0</apache.kafka.version>
+        <apache.pulsar.version>4.0.4</apache.pulsar.version>
         <!-- when updating apache ranger, verify the usage of aws-bundle-sdk vs aws-logs-sdk
         and update as needed in extensions-core/druid-ranger-security/pm.xml  -->
         <apache.ranger.version>2.4.0</apache.ranger.version>
@@ -257,6 +258,8 @@
         <module>extensions-contrib/druid-deltalake-extensions</module>
         <module>extensions-contrib/spectator-histogram</module>
         <module>extensions-contrib/rabbit-stream-indexing-service</module>
+        <module>extensions-contrib/pulsar-indexing-service</module>
+
         <!-- distribution packaging -->
         <module>distribution</module>
         <!-- Revised integration tests -->

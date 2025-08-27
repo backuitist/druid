@@ -902,6 +902,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
               <>
                 {this.renderIngestionCard('kafka')}
                 {this.renderIngestionCard('kinesis')}
+                {this.renderIngestionCard('pulsar')}
                 {this.renderIngestionCard('azure-event-hubs')}
               </>
             )}
@@ -1013,6 +1014,9 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
       case 'kinesis':
         return <p>Load streaming data in real-time from Amazon Kinesis.</p>;
 
+      case 'pulsar':
+        return <p>Load streaming data in real-time from Apache Pulsar.</p>
+
       case 'azure-event-hubs':
         return (
           <>
@@ -1069,6 +1073,7 @@ export class LoadDataView extends React.PureComponent<LoadDataViewProps, LoadDat
       case 'index_parallel:hdfs':
       case 'kafka':
       case 'kinesis':
+      case 'pulsar':
         return (
           <FormGroup>
             <Button
