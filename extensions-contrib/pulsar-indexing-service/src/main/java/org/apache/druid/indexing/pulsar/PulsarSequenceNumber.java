@@ -19,52 +19,31 @@
 
 package org.apache.druid.indexing.pulsar;
 
-import com.google.common.collect.ComparisonChain;
 import org.apache.druid.indexing.seekablestream.common.OrderedSequenceNumber;
 import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.client.impl.MessageIdImpl;
 
 import javax.validation.constraints.NotNull;
 
 // OrderedSequenceNumber.equals() should be used instead.
 @SuppressWarnings("ComparableImplementedButEqualsNotOverridden")
-public class PulsarSequenceNumber extends OrderedSequenceNumber<String>
+public class PulsarSequenceNumber extends OrderedSequenceNumber<MessageId>
 {
-  public static final String LATEST_OFFSET = MessageId.latest.toString();
-  public static final String EARLIEST_OFFSET = MessageId.earliest.toString();
 
-  private PulsarSequenceNumber(String sequenceNumber)
+  private PulsarSequenceNumber(MessageId sequenceNumber)
   {
     super(sequenceNumber, false);
   }
 
-  public static PulsarSequenceNumber of(String sequenceNumber)
+  public static PulsarSequenceNumber of(MessageId sequenceNumber)
   {
     return new PulsarSequenceNumber(sequenceNumber);
   }
 
-  public static PulsarSequenceNumber of(MessageId messageId)
-  {
-    return new PulsarSequenceNumber(messageId.toString());
-  }
-
   @Override
   public int compareTo(
-      @NotNull OrderedSequenceNumber<String> o
+      @NotNull OrderedSequenceNumber<MessageId> o
   )
   {
-    String[] ss1 = this.get().split(":");
-    String[] ss2 = o.get().split(":");
-    return ComparisonChain.start()
-        .compare(Long.parseLong(ss1[0]), Long.parseLong(ss2[0]))
-        .compare(Long.parseLong(ss1[1]), Long.parseLong(ss2[1]))
-        .compare(Integer.parseInt(ss1[2]), Integer.parseInt(ss2[2]))
-        .result();
-  }
-
-  public MessageId getMessageId()
-  {
-    String[] ss = this.get().split(":");
-    return new MessageIdImpl(Long.parseLong(ss[0]), Long.parseLong(ss[1]), Integer.parseInt(ss[2]));
+    return this.get().compareTo(o.get());
   }
 }

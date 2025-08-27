@@ -22,10 +22,7 @@ package org.apache.druid.indexing.pulsar;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.pulsar.PulsarRecordEntity;
-import org.apache.druid.indexing.seekablestream.common.OrderedPartitionableRecord;
-import org.apache.druid.indexing.seekablestream.common.RecordSupplier;
-import org.apache.druid.indexing.seekablestream.common.StreamException;
-import org.apache.druid.indexing.seekablestream.common.StreamPartition;
+import org.apache.druid.indexing.seekablestream.common.*;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
@@ -50,7 +47,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-public class PulsarRecordSupplier implements RecordSupplier<Integer, String, PulsarRecordEntity>, ReaderListener<byte[]>
+public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, PulsarRecordEntity>, ReaderListener<byte[]>
 {
   private static final Logger log = new Logger(PulsarRecordSupplier.class);
   private final ConcurrentHashMap<StreamPartition<Integer>, Container> readers = new ConcurrentHashMap<>();
@@ -182,7 +179,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
   }
 
   @Override
-  public void seek(StreamPartition<Integer> partition, String sequenceNumber) throws InterruptedException
+  public void seek(StreamPartition<Integer> partition, MessageId sequenceNumber) throws InterruptedException
   {
     Container reader = readers.get(partition);
     if (reader == null) {
@@ -190,9 +187,8 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
     }
 
     try {
-      final MessageId messageId = PulsarSequenceNumber.of(sequenceNumber).getMessageId();
-      reader.reader.seek(PulsarSequenceNumber.of(sequenceNumber).getMessageId());
-      setPosition(partition, messageId);
+      reader.reader.seek(sequenceNumber);
+      setPosition(partition, sequenceNumber);
       previousSeekFailure = null;
     }
     catch (PulsarClientException e) {
@@ -205,7 +201,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
   {
     streamPartitions.forEach(p -> {
       try {
-        seek(p, PulsarSequenceNumber.EARLIEST_OFFSET);
+        seek(p, MessageId.earliest);
       }
       catch (InterruptedException e) {
         throw new StreamException(e);
@@ -218,7 +214,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
   {
     streamPartitions.forEach(p -> {
       try {
-        seek(p, PulsarSequenceNumber.LATEST_OFFSET);
+        seek(p, MessageId.latest);
       }
       catch (InterruptedException e) {
         throw new StreamException(e);
@@ -234,10 +230,10 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
   }
 
   @Override
-  public List<OrderedPartitionableRecord<Integer, String, PulsarRecordEntity>> poll(long timeout)
+  public List<OrderedPartitionableRecord<Integer, MessageId, PulsarRecordEntity>> poll(long timeout)
   {
     try {
-      List<OrderedPartitionableRecord<Integer, String, PulsarRecordEntity>> records = new ArrayList<>();
+      List<OrderedPartitionableRecord<Integer, MessageId, PulsarRecordEntity>> records = new ArrayList<>();
 
 
       Message<byte[]> item = received.poll(timeout, TimeUnit.MILLISECONDS);
@@ -249,16 +245,15 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
 
       while (item != null) {
         StreamPartition<Integer> sp = getStreamPartitionFromMessage(item);
-        final PulsarSequenceNumber psn = PulsarSequenceNumber.of(item.getMessageId());
 
         records.add(new OrderedPartitionableRecord<>(
             sp.getStream(),
             sp.getPartitionId(),
-            psn.get(),
+            item.getMessageId(),
             ImmutableList.of(new PulsarRecordEntity(item))
         ));
 
-        setPosition(sp, psn.getMessageId());
+        setPosition(sp, item.getMessageId());
 
         if (++numberOfRecords >= maxRecordsInSinglePoll) {
           break;
@@ -284,26 +279,31 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
 
   @Nullable
   @Override
-  public String getLatestSequenceNumber(StreamPartition<Integer> partition)
+  public MessageId getLatestSequenceNumber(StreamPartition<Integer> partition)
   {
-    return PulsarSequenceNumber.LATEST_OFFSET;
+    return MessageId.latest;
   }
 
   @Nullable
   @Override
-  public String getEarliestSequenceNumber(StreamPartition<Integer> partition)
+  public MessageId getEarliestSequenceNumber(StreamPartition<Integer> partition)
   {
-    return PulsarSequenceNumber.EARLIEST_OFFSET;
+    return MessageId.earliest;
   }
 
   @Override
-  public String getPosition(StreamPartition<Integer> partition)
+  public boolean isOffsetAvailable(StreamPartition<Integer> partition, OrderedSequenceNumber<MessageId> offset) {
+    return false;
+  }
+
+  @Override
+  public MessageId getPosition(StreamPartition<Integer> partition)
   {
     Container reader = readers.get(partition);
     if (reader == null) {
       throw new IllegalArgumentException("Cannot seek on a partition where we are not assigned");
     }
-    return PulsarSequenceNumber.of(reader.position).get();
+    return reader.position;
   }
 
   @Override
@@ -354,6 +354,11 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, String, Pul
     catch (InterruptedException e) {
       throw new StreamException(e);
     }
+  }
+
+  @Override
+  public void reachedEndOfTopic(Reader<byte[]> reader) {
+    // no-op
   }
 
   private ClientConfigurationData createClientConf()

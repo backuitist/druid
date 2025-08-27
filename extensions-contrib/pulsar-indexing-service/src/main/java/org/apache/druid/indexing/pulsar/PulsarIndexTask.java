@@ -30,10 +30,11 @@ import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner;
 import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.TuningConfig;
+import org.apache.pulsar.client.api.MessageId;
 
 import java.util.Map;
 
-public class PulsarIndexTask extends SeekableStreamIndexTask<Integer, String, PulsarRecordEntity>
+public class PulsarIndexTask extends SeekableStreamIndexTask<Integer, MessageId, PulsarRecordEntity>
 {
   private static final String TYPE = "index_pulsar";
 
@@ -68,7 +69,7 @@ public class PulsarIndexTask extends SeekableStreamIndexTask<Integer, String, Pu
   }
 
   @Override
-  protected SeekableStreamIndexTaskRunner<Integer, String, PulsarRecordEntity> createTaskRunner()
+  protected SeekableStreamIndexTaskRunner<Integer, MessageId, PulsarRecordEntity> createTaskRunner()
   {
     //noinspection unchecked
     return new PulsarIndexTaskRunner(
@@ -86,7 +87,7 @@ public class PulsarIndexTask extends SeekableStreamIndexTask<Integer, String, Pu
     try {
       Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
 
-      int maxRowsInMemory = TuningConfig.DEFAULT_MAX_ROWS_IN_MEMORY;
+      int maxRowsInMemory = TuningConfig.DEFAULT_MAX_ROWS_IN_MEMORY_REALTIME;
 
       if (tuningConfig != null) {
         maxRowsInMemory = tuningConfig.getMaxRowsInMemory();

@@ -21,6 +21,7 @@ package org.apache.druid.indexing.pulsar.supervisor;
 
 import org.apache.druid.indexing.overlord.supervisor.SupervisorStateManager;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorReportPayload;
+import org.apache.pulsar.client.api.MessageId;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -28,7 +29,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 
-public class PulsarSupervisorReportPayload extends SeekableStreamSupervisorReportPayload<Integer, String>
+public class PulsarSupervisorReportPayload extends SeekableStreamSupervisorReportPayload<Integer, MessageId>
 {
   public PulsarSupervisorReportPayload(
       String dataSource,
@@ -36,7 +37,7 @@ public class PulsarSupervisorReportPayload extends SeekableStreamSupervisorRepor
       int partitions,
       int replicas,
       long durationSeconds,
-      @Nullable Map<Integer, String> latestOffsets,
+      @Nullable Map<Integer, MessageId> latestOffsets,
       @Nullable Map<Integer, Long> minimumLag,
       @Nullable Long aggregateLag,
       @Nullable DateTime offsetsLastUpdated,

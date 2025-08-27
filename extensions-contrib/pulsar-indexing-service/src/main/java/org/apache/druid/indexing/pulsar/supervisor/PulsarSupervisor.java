@@ -55,9 +55,10 @@ import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervi
 import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
+import org.apache.druid.java.util.metrics.DruidMonitorSchedulerConfig;
 import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.TuningConfig;
-import org.apache.druid.server.metrics.DruidMonitorSchedulerConfig;
+import org.apache.pulsar.client.api.MessageId;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -80,7 +81,7 @@ import java.util.stream.Collectors;
  * tasks to satisfy the desired number of replicas. As tasks complete, new tasks are queued to process the next range of
  * Pulsar offsets.
  */
-public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, PulsarRecordEntity>
+public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, MessageId, PulsarRecordEntity>
 {
   public static final TypeReference<TreeMap<Integer, Map<Integer, String>>> CHECKPOINTS_TYPE_REF =
       new TypeReference<TreeMap<Integer, Map<Integer, String>>>()
@@ -88,13 +89,13 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
       };
 
   private static final EmittingLogger log = new EmittingLogger(PulsarSupervisor.class);
-  private static final String NOT_SET = "-1:-1:-1";
-  private static final String END_OF_PARTITION = "9223372036854775807:9223372036854775807:-1";
+  private static final MessageId NOT_SET = MessageId.earliest;
+  private static final MessageId END_OF_PARTITION = MessageId.latest;
 
   private final ServiceEmitter emitter;
   private final DruidMonitorSchedulerConfig monitorSchedulerConfig;
   private final PulsarSupervisorSpec spec;
-  private volatile Map<Integer, String> latestSequenceFromStream;
+  private volatile Map<Integer, MessageId> latestSequenceFromStream;
 
   public PulsarSupervisor(
       final TaskStorage taskStorage,
@@ -125,7 +126,7 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
 
 
   @Override
-  protected RecordSupplier<Integer, String, PulsarRecordEntity> setupRecordSupplier()
+  protected RecordSupplier<Integer, MessageId, PulsarRecordEntity> setupRecordSupplier()
   {
     return new PulsarRecordSupplier(
         StringUtils.format("PulsarSupervisor-%s", spec.getDataSchema().getDataSource()),
@@ -148,7 +149,7 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
         getIoConfig().getConnectionTimeoutMs(),
         getIoConfig().getRequestTimeoutMs(),
         getIoConfig().getMaxBackoffIntervalNanos(),
-        TuningConfig.DEFAULT_MAX_ROWS_IN_MEMORY
+        TuningConfig.DEFAULT_MAX_ROWS_IN_MEMORY_REALTIME
     );
   }
 
@@ -171,7 +172,7 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
   }
 
   @Override
-  protected SeekableStreamSupervisorReportPayload<Integer, String> createReportPayload(
+  protected SeekableStreamSupervisorReportPayload<Integer, MessageId> createReportPayload(
       int numPartitions,
       boolean includeOffsets
   )
@@ -200,8 +201,8 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
   @Override
   protected SeekableStreamIndexTaskIOConfig createTaskIoConfig(
       int groupId,
-      Map<Integer, String> startPartitions,
-      Map<Integer, String> endPartitions,
+      Map<Integer, MessageId> startPartitions,
+      Map<Integer, MessageId> endPartitions,
       String baseSequenceName,
       DateTime minimumMessageTime,
       DateTime maximumMessageTime,
@@ -238,16 +239,17 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
         pulsarIoConfig.getKeepAliveIntervalSeconds(),
         pulsarIoConfig.getConnectionTimeoutMs(),
         pulsarIoConfig.getRequestTimeoutMs(),
-        pulsarIoConfig.getMaxBackoffIntervalNanos()
+        pulsarIoConfig.getMaxBackoffIntervalNanos(),
+        pulsarIoConfig.getTaskDuration().getStandardMinutes()
     );
   }
 
   @Override
-  protected List<SeekableStreamIndexTask<Integer, String, PulsarRecordEntity>> createIndexTasks(
+  protected List<SeekableStreamIndexTask<Integer, MessageId, PulsarRecordEntity>> createIndexTasks(
       int replicas,
       String baseSequenceName,
       ObjectMapper sortingMapper,
-      TreeMap<Integer, Map<Integer, String>> sequenceOffsets,
+      TreeMap<Integer, Map<Integer, MessageId>> sequenceOffsets,
       SeekableStreamIndexTaskIOConfig taskIoConfig,
       SeekableStreamIndexTaskTuningConfig taskTuningConfig,
       RowIngestionMetersFactory rowIngestionMetersFactory
@@ -261,7 +263,7 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
     // Pulsar index task will pick up LegacyPulsarIndexTaskRunner without the below configuration.
     context.put("IS_INCREMENTAL_HANDOFF_SUPPORTED", true);
 
-    List<SeekableStreamIndexTask<Integer, String, PulsarRecordEntity>> taskList = new ArrayList<>();
+    List<SeekableStreamIndexTask<Integer, MessageId, PulsarRecordEntity>> taskList = new ArrayList<>();
     for (int i = 0; i < replicas; i++) {
       String taskId = IdUtils.getRandomIdWithPrefix(baseSequenceName);
       taskList.add(new PulsarIndexTask(
@@ -280,7 +282,7 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
   @Override
   protected Map<Integer, Long> getPartitionRecordLag()
   {
-    Map<Integer, String> highestCurrentOffsets = getHighestCurrentOffsets();
+    Map<Integer, MessageId> highestCurrentOffsets = getHighestCurrentOffsets();
 
     if (latestSequenceFromStream == null) {
       return null;
@@ -308,51 +310,51 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, String, 
   @Override
   // suppress use of CollectionUtils.mapValues() since the valueMapper function is dependent on map key here
   @SuppressWarnings("SSBasedInspection")
-  protected Map<Integer, Long> getRecordLagPerPartition(Map<Integer, String> currentOffsets)
+  protected Map<Integer, Long> getRecordLagPerPartition(Map<Integer, MessageId> currentOffsets)
   {
     // TODO(jpg): Can we calculate lag for Pulsar?
     return ImmutableMap.of();
   }
 
   @Override
-  protected Map<Integer, Long> getTimeLagPerPartition(Map<Integer, String> currentOffsets)
+  protected Map<Integer, Long> getTimeLagPerPartition(Map<Integer, MessageId> currentOffsets)
   {
     // TODO(jpg): Can we calculate lag for Pulsar?
     return ImmutableMap.of();
   }
 
   @Override
-  protected PulsarDataSourceMetadata createDataSourceMetaDataForReset(String topic, Map<Integer, String> map)
+  protected PulsarDataSourceMetadata createDataSourceMetaDataForReset(String topic, Map<Integer, MessageId> map)
   {
     return new PulsarDataSourceMetadata(new SeekableStreamEndSequenceNumbers<>(topic, map));
   }
 
   @Override
-  protected OrderedSequenceNumber<String> makeSequenceNumber(String seq, boolean isExclusive)
+  protected OrderedSequenceNumber<MessageId> makeSequenceNumber(MessageId seq, boolean isExclusive)
   {
     return PulsarSequenceNumber.of(seq);
   }
 
   @Override
-  protected String getNotSetMarker()
+  protected MessageId getNotSetMarker()
   {
     return NOT_SET;
   }
 
   @Override
-  protected String getEndOfPartitionMarker()
+  protected MessageId getEndOfPartitionMarker()
   {
     return END_OF_PARTITION;
   }
 
   @Override
-  protected boolean isEndOfShard(String seqNum)
+  protected boolean isEndOfShard(MessageId seqNum)
   {
     return false;
   }
 
   @Override
-  protected boolean isShardExpirationMarker(String seqNum)
+  protected boolean isShardExpirationMarker(MessageId seqNum)
   {
     return false;
   }

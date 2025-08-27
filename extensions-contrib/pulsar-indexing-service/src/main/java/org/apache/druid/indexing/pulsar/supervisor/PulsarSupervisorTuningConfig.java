@@ -36,7 +36,6 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
     implements SeekableStreamSupervisorTuningConfig
 {
   private final Integer workerThreads;
-  private final Integer chatThreads;
   private final Long chatRetries;
   private final Duration httpTimeout;
   private final Duration shutdownTimeout;
@@ -61,7 +60,6 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
       @JsonProperty("skipSequenceNumberAvailabilityCheck") @Nullable Boolean skipSequenceNumberAvailabilityCheck,
       @JsonProperty("segmentWriteOutMediumFactory") @Nullable SegmentWriteOutMediumFactory segmentWriteOutMediumFactory,
       @JsonProperty("workerThreads") Integer workerThreads,
-      @JsonProperty("chatThreads") Integer chatThreads,
       @JsonProperty("chatRetries") Long chatRetries,
       @JsonProperty("httpTimeout") Period httpTimeout,
       @JsonProperty("shutdownTimeout") Period shutdownTimeout,
@@ -69,7 +67,9 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
       @JsonProperty("intermediateHandoffPeriod") Period intermediateHandoffPeriod,
       @JsonProperty("logParseExceptions") @Nullable Boolean logParseExceptions,
       @JsonProperty("maxParseExceptions") @Nullable Integer maxParseExceptions,
-      @JsonProperty("maxSavedParseExceptions") @Nullable Integer maxSavedParseExceptions
+      @JsonProperty("maxSavedParseExceptions") @Nullable Integer maxSavedParseExceptions,
+      @JsonProperty("numPersistThreads") @Nullable Integer numPersistThreads,
+      @JsonProperty("maxColumnsToMerge") @Nullable Integer maxColumnsToMerge
   )
   {
     super(
@@ -92,10 +92,11 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
         intermediateHandoffPeriod,
         logParseExceptions,
         maxParseExceptions,
-        maxSavedParseExceptions
+        maxSavedParseExceptions,
+        numPersistThreads,
+        maxColumnsToMerge
     );
     this.workerThreads = workerThreads;
-    this.chatThreads = chatThreads;
     this.chatRetries = (chatRetries != null ? chatRetries : DEFAULT_CHAT_RETRIES);
     this.httpTimeout = SeekableStreamSupervisorTuningConfig.defaultDuration(httpTimeout, DEFAULT_HTTP_TIMEOUT);
     this.shutdownTimeout = SeekableStreamSupervisorTuningConfig.defaultDuration(
@@ -136,6 +137,7 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
         null,
         null,
         null,
+        null,
         null
     );
   }
@@ -145,13 +147,6 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
   public Integer getWorkerThreads()
   {
     return workerThreads;
-  }
-
-  @Override
-  @JsonProperty
-  public Integer getChatThreads()
-  {
-    return chatThreads;
   }
 
   @Override
@@ -211,7 +206,6 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
            ", resetOffsetAutomatically=" + isResetOffsetAutomatically() +
            ", segmentWriteOutMediumFactory=" + getSegmentWriteOutMediumFactory() +
            ", workerThreads=" + workerThreads +
-           ", chatThreads=" + chatThreads +
            ", chatRetries=" + chatRetries +
            ", httpTimeout=" + httpTimeout +
            ", shutdownTimeout=" + shutdownTimeout +
@@ -220,6 +214,8 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
            ", logParseExceptions=" + isLogParseExceptions() +
            ", maxParseExceptions=" + getMaxParseExceptions() +
            ", maxSavedParseExceptions=" + getMaxSavedParseExceptions() +
+           ", numPersistThreads=" + getNumPersistThreads() +
+           ", maxColumnsToMerge=" + getMaxColumnsToMerge() +
            '}';
   }
 
@@ -246,7 +242,9 @@ public class PulsarSupervisorTuningConfig extends PulsarIndexTaskTuningConfig
         getIntermediateHandoffPeriod(),
         isLogParseExceptions(),
         getMaxParseExceptions(),
-        getMaxSavedParseExceptions()
+        getMaxSavedParseExceptions(),
+        getNumPersistThreads(),
+        getMaxColumnsToMerge()
     );
   }
 }

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.InputFormat;
+import org.apache.druid.indexing.seekablestream.supervisor.IdleConfig;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorIOConfig;
 import org.apache.druid.indexing.seekablestream.supervisor.autoscaler.AutoScalerConfig;
 import org.joda.time.DateTime;
@@ -90,7 +91,9 @@ public class PulsarSupervisorIOConfig extends SeekableStreamSupervisorIOConfig
       @JsonProperty("keepAliveIntervalSeconds") Integer keepAliveIntervalSeconds,
       @JsonProperty("connectionTimeoutMs") Integer connectionTimeoutMs,
       @JsonProperty("requestTimeoutMs") Integer requestTimeoutMs,
-      @JsonProperty("maxBackoffIntervalNanos") Long maxBackoffIntervalNanos
+      @JsonProperty("maxBackoffIntervalNanos") Long maxBackoffIntervalNanos,
+      @JsonProperty("idleConfig") IdleConfig idleConfig,
+      @JsonProperty("stopTaskCount") Integer stopTaskCount
   )
   {
     super(
@@ -106,7 +109,9 @@ public class PulsarSupervisorIOConfig extends SeekableStreamSupervisorIOConfig
         lateMessageRejectionPeriod,
         earlyMessageRejectionPeriod,
         autoScalerConfig,
-        lateMessageRejectionStartDateTime
+        lateMessageRejectionStartDateTime,
+        idleConfig,
+        stopTaskCount
     );
 
     this.pollTimeout = pollTimeout != null ? pollTimeout : DEFAULT_POLL_TIMEOUT_MILLIS;
@@ -272,7 +277,7 @@ public class PulsarSupervisorIOConfig extends SeekableStreamSupervisorIOConfig
            ", replicas=" + getReplicas() +
            ", taskCount=" + getTaskCount() +
            ", taskDuration=" + getTaskDuration() +
-           ", autoScalerConfig=" + getAutoscalerConfig() +
+           ", autoScalerConfig=" + getAutoScalerConfig() +
            ", startDelay=" + getStartDelay() +
            ", period=" + getPeriod() +
            ", useEarliestMessageId=" + isUseEarliestMessageId() +

@@ -25,13 +25,14 @@ import org.apache.druid.indexing.overlord.DataSourceMetadata;
 import org.apache.druid.indexing.seekablestream.SeekableStreamDataSourceMetadata;
 import org.apache.druid.indexing.seekablestream.SeekableStreamEndSequenceNumbers;
 import org.apache.druid.indexing.seekablestream.SeekableStreamSequenceNumbers;
+import org.apache.pulsar.client.api.MessageId;
 
-public class PulsarDataSourceMetadata extends SeekableStreamDataSourceMetadata<Integer, String>
+public class PulsarDataSourceMetadata extends SeekableStreamDataSourceMetadata<Integer, MessageId>
 {
 
   @JsonCreator
   public PulsarDataSourceMetadata(
-      @JsonProperty("partitions") SeekableStreamSequenceNumbers<Integer, String> pulsarPartitions
+      @JsonProperty("partitions") SeekableStreamSequenceNumbers<Integer, MessageId> pulsarPartitions
   )
   {
     super(pulsarPartitions);
@@ -40,10 +41,10 @@ public class PulsarDataSourceMetadata extends SeekableStreamDataSourceMetadata<I
   @Override
   public DataSourceMetadata asStartMetadata()
   {
-    final SeekableStreamSequenceNumbers<Integer, String> sequenceNumbers = getSeekableStreamSequenceNumbers();
+    final SeekableStreamSequenceNumbers<Integer, MessageId> sequenceNumbers = getSeekableStreamSequenceNumbers();
     if (sequenceNumbers instanceof SeekableStreamEndSequenceNumbers) {
       return createConcreteDataSourceMetaData(
-          ((SeekableStreamEndSequenceNumbers<Integer, String>) sequenceNumbers).asStartPartitions(false)
+          ((SeekableStreamEndSequenceNumbers<Integer, MessageId>) sequenceNumbers).asStartPartitions(false)
       );
     } else {
       return this;
@@ -51,8 +52,8 @@ public class PulsarDataSourceMetadata extends SeekableStreamDataSourceMetadata<I
   }
 
   @Override
-  protected SeekableStreamDataSourceMetadata<Integer, String> createConcreteDataSourceMetaData(
-      SeekableStreamSequenceNumbers<Integer, String> seekableStreamSequenceNumbers
+  protected SeekableStreamDataSourceMetadata<Integer, MessageId> createConcreteDataSourceMetaData(
+      SeekableStreamSequenceNumbers<Integer, MessageId> seekableStreamSequenceNumbers
   )
   {
     return new PulsarDataSourceMetadata(seekableStreamSequenceNumbers);

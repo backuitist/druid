@@ -24,11 +24,8 @@ import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Binder;
-import com.google.inject.TypeLiteral;
-import org.apache.druid.guice.LazySingleton;
 import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorSpec;
 import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorTuningConfig;
-import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskClientFactory;
 import org.apache.druid.initialization.DruidModule;
 
 import java.util.List;
@@ -55,10 +52,6 @@ public class PulsarIndexingServiceModule implements DruidModule
   @Override
   public void configure(Binder binder)
   {
-    binder.bind(
-        new TypeLiteral<SeekableStreamIndexTaskClientFactory<PulsarIndexTaskClient>>()
-        {
-        }
-    ).to(PulsarIndexTaskClientFactory.class).in(LazySingleton.class);
+    // nothing to do
   }
 }

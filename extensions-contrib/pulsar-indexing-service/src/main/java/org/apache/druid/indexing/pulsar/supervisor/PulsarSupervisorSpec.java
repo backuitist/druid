@@ -32,9 +32,9 @@ import org.apache.druid.indexing.overlord.supervisor.SupervisorStateManagerConfi
 import org.apache.druid.indexing.pulsar.PulsarIndexTaskClientFactory;
 import org.apache.druid.indexing.seekablestream.supervisor.SeekableStreamSupervisorSpec;
 import org.apache.druid.java.util.emitter.service.ServiceEmitter;
+import org.apache.druid.java.util.metrics.DruidMonitorSchedulerConfig;
 import org.apache.druid.segment.incremental.RowIngestionMetersFactory;
 import org.apache.druid.segment.indexing.DataSchema;
-import org.apache.druid.server.metrics.DruidMonitorSchedulerConfig;
 
 import javax.annotation.Nullable;
 

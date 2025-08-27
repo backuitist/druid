@@ -55,7 +55,9 @@ public class PulsarIndexTaskTuningConfig extends SeekableStreamIndexTaskTuningCo
       @JsonProperty("intermediateHandoffPeriod") @Nullable Period intermediateHandoffPeriod,
       @JsonProperty("logParseExceptions") @Nullable Boolean logParseExceptions,
       @JsonProperty("maxParseExceptions") @Nullable Integer maxParseExceptions,
-      @JsonProperty("maxSavedParseExceptions") @Nullable Integer maxSavedParseExceptions
+      @JsonProperty("maxSavedParseExceptions") @Nullable Integer maxSavedParseExceptions,
+      @JsonProperty("numPersistThreads") @Nullable Integer numPersistThreads,
+      @JsonProperty("maxColumnsToMerge") @Nullable Integer maxColumnsToMerge
   )
   {
     super(
@@ -78,7 +80,9 @@ public class PulsarIndexTaskTuningConfig extends SeekableStreamIndexTaskTuningCo
         intermediateHandoffPeriod,
         logParseExceptions,
         maxParseExceptions,
-        maxSavedParseExceptions
+        maxSavedParseExceptions,
+        numPersistThreads,
+        maxColumnsToMerge
     );
   }
 
@@ -105,7 +109,9 @@ public class PulsarIndexTaskTuningConfig extends SeekableStreamIndexTaskTuningCo
         getIntermediateHandoffPeriod(),
         isLogParseExceptions(),
         getMaxParseExceptions(),
-        getMaxSavedParseExceptions()
+        getMaxSavedParseExceptions(),
+        getNumPersistThreads(),
+        getMaxColumnsToMerge()
     );
   }
 

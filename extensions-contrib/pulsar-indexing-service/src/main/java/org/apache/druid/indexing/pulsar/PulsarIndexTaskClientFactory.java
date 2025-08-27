@@ -21,14 +21,15 @@ package org.apache.druid.indexing.pulsar;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Inject;
+import org.apache.druid.guice.LazySingleton;
 import org.apache.druid.guice.annotations.EscalatedGlobal;
 import org.apache.druid.guice.annotations.Json;
-import org.apache.druid.indexing.common.TaskInfoProvider;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskClientFactory;
 import org.apache.druid.java.util.http.client.HttpClient;
-import org.joda.time.Duration;
+import org.apache.pulsar.client.api.MessageId;
 
-public class PulsarIndexTaskClientFactory extends SeekableStreamIndexTaskClientFactory<PulsarIndexTaskClient>
+@LazySingleton
+public class PulsarIndexTaskClientFactory extends SeekableStreamIndexTaskClientFactory<Integer, MessageId>
 {
   @Inject
   public PulsarIndexTaskClientFactory(
@@ -36,26 +37,18 @@ public class PulsarIndexTaskClientFactory extends SeekableStreamIndexTaskClientF
       @Json ObjectMapper mapper
   )
   {
-    super(httpClient, mapper);
-  }
+      super(httpClient, mapper);
+    }
 
-  @Override
-  public PulsarIndexTaskClient build(
-      TaskInfoProvider taskInfoProvider,
-      String dataSource,
-      int numThreads,
-      Duration httpTimeout,
-      long numRetries
-  )
-  {
-    return new PulsarIndexTaskClient(
-        getHttpClient(),
-        getMapper(),
-        taskInfoProvider,
-        dataSource,
-        numThreads,
-        httpTimeout,
-        numRetries
-    );
-  }
+    @Override
+    public Class<Integer> getPartitionType()
+    {
+      return Integer.class;
+    }
+
+    @Override
+    public Class<MessageId> getSequenceType()
+    {
+      return MessageId.class;
+    }
 }

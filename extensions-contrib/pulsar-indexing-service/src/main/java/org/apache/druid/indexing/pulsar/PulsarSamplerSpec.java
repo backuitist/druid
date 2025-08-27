@@ -51,7 +51,7 @@ public class PulsarSamplerSpec extends SeekableStreamSamplerSpec
   {
     final PulsarSupervisorIOConfig pulsarIOConfig = (PulsarSupervisorIOConfig) ioConfig;
 
-    int maxRowsInMemory = TuningConfig.DEFAULT_MAX_ROWS_IN_MEMORY;
+    int maxRowsInMemory = TuningConfig.DEFAULT_MAX_ROWS_IN_MEMORY_REALTIME;
 
     if (tuningConfig != null) {
       maxRowsInMemory = tuningConfig.convertToTaskTuningConfig().getMaxRowsInMemory();

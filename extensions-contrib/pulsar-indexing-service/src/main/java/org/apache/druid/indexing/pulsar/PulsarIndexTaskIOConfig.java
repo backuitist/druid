@@ -27,11 +27,12 @@ import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorIOConfig;
 import org.apache.druid.indexing.seekablestream.SeekableStreamEndSequenceNumbers;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskIOConfig;
 import org.apache.druid.indexing.seekablestream.SeekableStreamStartSequenceNumbers;
+import org.apache.pulsar.client.api.MessageId;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
 
-public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Integer, String>
+public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Integer, MessageId>
 {
   private final Long pollTimeout;
   private final String serviceUrl;
@@ -60,14 +61,14 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
       @JsonProperty("baseSequenceName") String baseSequenceName,
       // startPartitions and endPartitions exist to be able to read old ioConfigs in metadata store
       @JsonProperty("startPartitions") @Nullable
-      @Deprecated SeekableStreamEndSequenceNumbers<Integer, String> startPartitions,
+      @Deprecated SeekableStreamEndSequenceNumbers<Integer, MessageId> startPartitions,
       @JsonProperty("endPartitions") @Nullable
-      @Deprecated SeekableStreamEndSequenceNumbers<Integer, String> endPartitions,
+      @Deprecated SeekableStreamEndSequenceNumbers<Integer, MessageId> endPartitions,
       // startSequenceNumbers and endSequenceNumbers must be set for new versions
       @JsonProperty("startSequenceNumbers")
-      @Nullable SeekableStreamStartSequenceNumbers<Integer, String> startSequenceNumbers,
+      @Nullable SeekableStreamStartSequenceNumbers<Integer, MessageId> startSequenceNumbers,
       @JsonProperty("endSequenceNumbers")
-      @Nullable SeekableStreamEndSequenceNumbers<Integer, String> endSequenceNumbers,
+      @Nullable SeekableStreamEndSequenceNumbers<Integer, MessageId> endSequenceNumbers,
       @JsonProperty("useTransaction") Boolean useTransaction,
       @JsonProperty("minimumMessageTime") DateTime minimumMessageTime,
       @JsonProperty("maximumMessageTime") DateTime maximumMessageTime,
@@ -91,7 +92,8 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
       @JsonProperty("keepAliveIntervalSeconds") Integer keepAliveIntervalSeconds,
       @JsonProperty("connectionTimeoutMs") Integer connectionTimeoutMs,
       @JsonProperty("requestTimeoutMs") Integer requestTimeoutMs,
-      @JsonProperty("maxBackoffIntervalNanos") Long maxBackoffIntervalNanos
+      @JsonProperty("maxBackoffIntervalNanos") Long maxBackoffIntervalNanos,
+      @JsonProperty("refreshRejectionPeriodsInMinutes") Long refreshRejectionPeriodsInMinutes
   )
   {
     super(
@@ -104,7 +106,8 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
         useTransaction,
         minimumMessageTime,
         maximumMessageTime,
-        inputFormat
+        inputFormat,
+        refreshRejectionPeriodsInMinutes
     );
 
     this.pollTimeout = pollTimeout != null ? pollTimeout : PulsarSupervisorIOConfig.DEFAULT_POLL_TIMEOUT_MILLIS;
@@ -128,7 +131,7 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
     this.requestTimeoutMs = requestTimeoutMs;
     this.maxBackoffIntervalNanos = maxBackoffIntervalNanos;
 
-    final SeekableStreamEndSequenceNumbers<Integer, String> myEndSequenceNumbers = getEndSequenceNumbers();
+    final SeekableStreamEndSequenceNumbers<Integer, MessageId> myEndSequenceNumbers = getEndSequenceNumbers();
     for (Integer partition : myEndSequenceNumbers.getPartitionSequenceNumberMap().keySet()) {
       Preconditions.checkArgument(
           myEndSequenceNumbers.getPartitionSequenceNumberMap()
@@ -143,8 +146,8 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
   public PulsarIndexTaskIOConfig(
       Integer taskGroupId,
       String baseSequenceName,
-      SeekableStreamStartSequenceNumbers<Integer, String> startSequenceNumbers,
-      SeekableStreamEndSequenceNumbers<Integer, String> endSequenceNumbers,
+      SeekableStreamStartSequenceNumbers<Integer, MessageId> startSequenceNumbers,
+      SeekableStreamEndSequenceNumbers<Integer, MessageId> endSequenceNumbers,
       Boolean useTransaction,
       DateTime minimumMessageTime,
       DateTime maximumMessageTime,
@@ -168,7 +171,8 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
       Integer keepAliveIntervalSeconds,
       Integer connectionTimeoutMs,
       Integer requestTimeoutMs,
-      Long maxBackoffIntervalNanos
+      Long maxBackoffIntervalNanos,
+      Long refreshRejectionPeriodsInMinutes
   )
   {
     this(
@@ -201,7 +205,8 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
         keepAliveIntervalSeconds,
         connectionTimeoutMs,
         requestTimeoutMs,
-        maxBackoffIntervalNanos
+        maxBackoffIntervalNanos,
+        refreshRejectionPeriodsInMinutes
     );
   }
 
@@ -212,10 +217,10 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
    */
   @JsonProperty
   @Deprecated
-  public SeekableStreamEndSequenceNumbers<Integer, String> getStartPartitions()
+  public SeekableStreamEndSequenceNumbers<Integer, MessageId> getStartPartitions()
   {
     // Converting to start sequence numbers. This is allowed for Pulsar because the start offset is always inclusive.
-    final SeekableStreamStartSequenceNumbers<Integer, String> startSequenceNumbers = getStartSequenceNumbers();
+    final SeekableStreamStartSequenceNumbers<Integer, MessageId> startSequenceNumbers = getStartSequenceNumbers();
     return new SeekableStreamEndSequenceNumbers<>(
         startSequenceNumbers.getStream(),
         startSequenceNumbers.getPartitionSequenceNumberMap()
