@@ -7,7 +7,7 @@ let
   ]);
 
   makeDist = pkgs.writeShellScriptBin "druid.makeDist" ''
-    ${pkgs.maven}/bin/mvn install -Dcheckstyle.skip=true -DskipTests -Pdist
+    ${pkgs.maven}/bin/mvn install -Dcheckstyle.skip=true -DskipTests -Pdist $@
   '';
 in
 
