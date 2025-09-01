@@ -94,27 +94,9 @@ public class PulsarIndexTask extends SeekableStreamIndexTask<Integer, MessageId,
       }
 
       return new PulsarRecordSupplier(
+          ioConfig.createClientConf(),
           // TODO(jpg): Determine if we want to give readers better names
           getId(),
-          ioConfig.getServiceUrl(),
-          ioConfig.getAuthPluginClassName(),
-          ioConfig.getAuthParams(),
-          ioConfig.getOperationTimeoutMs(),
-          ioConfig.getStatsIntervalSeconds(),
-          ioConfig.getNumIoThreads(),
-          ioConfig.getNumListenerThreads(),
-          ioConfig.isUseTcpNoDelay(),
-          ioConfig.isUseTls(),
-          ioConfig.getTlsTrustCertsFilePath(),
-          ioConfig.isTlsAllowInsecureConnection(),
-          ioConfig.isTlsHostnameVerificationEnable(),
-          ioConfig.getConcurrentLookupRequest(),
-          ioConfig.getMaxLookupRequest(),
-          ioConfig.getMaxNumberOfRejectedRequestPerConnection(),
-          ioConfig.getKeepAliveIntervalSeconds(),
-          ioConfig.getConnectionTimeoutMs(),
-          ioConfig.getRequestTimeoutMs(),
-          ioConfig.getMaxBackoffIntervalNanos(),
           maxRowsInMemory
       );
     }

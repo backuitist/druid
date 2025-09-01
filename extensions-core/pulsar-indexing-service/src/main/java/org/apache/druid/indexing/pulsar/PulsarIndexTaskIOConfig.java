@@ -28,6 +28,7 @@ import org.apache.druid.indexing.seekablestream.SeekableStreamEndSequenceNumbers
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskIOConfig;
 import org.apache.druid.indexing.seekablestream.SeekableStreamStartSequenceNumbers;
 import org.apache.pulsar.client.api.MessageId;
+import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
@@ -345,6 +346,68 @@ public class PulsarIndexTaskIOConfig extends SeekableStreamIndexTaskIOConfig<Int
   public Long getMaxBackoffIntervalNanos()
   {
     return maxBackoffIntervalNanos;
+  }
+
+
+  public ClientConfigurationData createClientConf()
+  {
+    ClientConfigurationData clientConf = new ClientConfigurationData();
+    clientConf.setServiceUrl(this.serviceUrl);
+    if (this.authPluginClassName != null) {
+      clientConf.setAuthPluginClassName(this.authPluginClassName);
+    }
+    if (this.authParams != null) {
+      clientConf.setAuthParams(this.authParams);
+    }
+    if (this.operationTimeoutMs != null) {
+      clientConf.setOperationTimeoutMs(this.operationTimeoutMs);
+    }
+    if (this.statsIntervalSeconds != null) {
+      clientConf.setStatsIntervalSeconds(this.statsIntervalSeconds);
+    }
+    if (this.numIoThreads != null) {
+      clientConf.setNumIoThreads(this.numIoThreads);
+    }
+    if (this.numListenerThreads != null) {
+      clientConf.setNumListenerThreads(this.numListenerThreads);
+    }
+    if (this.useTcpNoDelay != null) {
+      clientConf.setUseTcpNoDelay(this.useTcpNoDelay);
+    }
+    if (this.useTls != null) {
+      clientConf.setUseTls(this.useTls);
+    }
+    if (this.tlsTrustCertsFilePath != null) {
+      clientConf.setTlsTrustCertsFilePath(this.tlsTrustCertsFilePath);
+    }
+    if (this.tlsAllowInsecureConnection != null) {
+      clientConf.setTlsAllowInsecureConnection(this.tlsAllowInsecureConnection);
+    }
+    if (this.tlsHostnameVerificationEnable != null) {
+      clientConf.setTlsHostnameVerificationEnable(this.tlsHostnameVerificationEnable);
+    }
+    if (this.concurrentLookupRequest != null) {
+      clientConf.setConcurrentLookupRequest(this.concurrentLookupRequest);
+    }
+    if (this.maxLookupRequest != null) {
+      clientConf.setMaxLookupRequest(this.maxLookupRequest);
+    }
+    if (this.maxNumberOfRejectedRequestPerConnection != null) {
+      clientConf.setMaxNumberOfRejectedRequestPerConnection(this.maxNumberOfRejectedRequestPerConnection);
+    }
+    if (this.keepAliveIntervalSeconds != null) {
+      clientConf.setKeepAliveIntervalSeconds(this.keepAliveIntervalSeconds);
+    }
+    if (this.connectionTimeoutMs != null) {
+      clientConf.setConnectionTimeoutMs(this.connectionTimeoutMs);
+    }
+    if (this.requestTimeoutMs != null) {
+      clientConf.setRequestTimeoutMs(this.requestTimeoutMs);
+    }
+    if (this.maxBackoffIntervalNanos != null) {
+      clientConf.setMaxBackoffIntervalNanos(this.maxBackoffIntervalNanos);
+    }
+    return clientConf;
   }
 
   @Override

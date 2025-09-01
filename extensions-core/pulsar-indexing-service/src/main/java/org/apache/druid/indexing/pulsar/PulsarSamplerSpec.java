@@ -22,7 +22,6 @@ package org.apache.druid.indexing.pulsar;
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.druid.indexing.overlord.sampler.InputSourceSampler;
 import org.apache.druid.indexing.overlord.sampler.SamplerConfig;
 import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorIOConfig;
@@ -39,8 +38,7 @@ public class PulsarSamplerSpec extends SeekableStreamSamplerSpec
   public PulsarSamplerSpec(
       @JsonProperty("spec") final PulsarSupervisorSpec ingestionSpec,
       @JsonProperty("samplerConfig") @Nullable final SamplerConfig samplerConfig,
-      @JacksonInject InputSourceSampler inputSourceSampler,
-      @JacksonInject ObjectMapper objectMapper
+      @JacksonInject InputSourceSampler inputSourceSampler
   )
   {
     super(ingestionSpec, samplerConfig, inputSourceSampler);
@@ -58,26 +56,8 @@ public class PulsarSamplerSpec extends SeekableStreamSamplerSpec
     }
 
     return new PulsarRecordSupplier(
+            pulsarIOConfig.createClientConf(),
         "druid-pulsar-indexing-sampler",
-        pulsarIOConfig.getServiceUrl(),
-        pulsarIOConfig.getAuthPluginClassName(),
-        pulsarIOConfig.getAuthParams(),
-        pulsarIOConfig.getOperationTimeoutMs(),
-        pulsarIOConfig.getStatsIntervalSeconds(),
-        pulsarIOConfig.getNumIoThreads(),
-        pulsarIOConfig.getNumListenerThreads(),
-        pulsarIOConfig.isUseTcpNoDelay(),
-        pulsarIOConfig.isUseTls(),
-        pulsarIOConfig.getTlsTrustCertsFilePath(),
-        pulsarIOConfig.isTlsAllowInsecureConnection(),
-        pulsarIOConfig.isTlsHostnameVerificationEnable(),
-        pulsarIOConfig.getConcurrentLookupRequest(),
-        pulsarIOConfig.getMaxLookupRequest(),
-        pulsarIOConfig.getMaxNumberOfRejectedRequestPerConnection(),
-        pulsarIOConfig.getKeepAliveIntervalSeconds(),
-        pulsarIOConfig.getConnectionTimeoutMs(),
-        pulsarIOConfig.getRequestTimeoutMs(),
-        pulsarIOConfig.getMaxBackoffIntervalNanos(),
         maxRowsInMemory);
   }
 }

@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.jsontype.NamedType;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Binder;
+import org.apache.druid.data.input.pulsar.PulsarInputFormat;
 import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorSpec;
 import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorTuningConfig;
 import org.apache.druid.initialization.DruidModule;
@@ -44,7 +45,8 @@ public class PulsarIndexingServiceModule implements DruidModule
                 new NamedType(PulsarIndexTaskTuningConfig.class, "pulsar"),
                 new NamedType(PulsarSupervisorTuningConfig.class, "pulsar"),
                 new NamedType(PulsarSupervisorSpec.class, "pulsar"),
-                new NamedType(PulsarSamplerSpec.class, "pulsar")
+                new NamedType(PulsarSamplerSpec.class, "pulsar"),
+                new NamedType(PulsarInputFormat.class, "pulsar")
             )
     );
   }

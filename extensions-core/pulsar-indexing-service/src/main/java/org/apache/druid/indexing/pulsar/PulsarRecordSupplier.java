@@ -19,112 +19,45 @@
 
 package org.apache.druid.indexing.pulsar;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.pulsar.PulsarRecordEntity;
 import org.apache.druid.indexing.seekablestream.common.*;
 import org.apache.druid.java.util.common.logger.Logger;
-import org.apache.pulsar.client.api.Message;
-import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.client.api.PulsarClient;
-import org.apache.pulsar.client.api.PulsarClientException;
-import org.apache.pulsar.client.api.Reader;
-import org.apache.pulsar.client.api.ReaderListener;
+import org.apache.pulsar.client.api.*;
+import org.apache.pulsar.client.api.schema.GenericRecord;
 import org.apache.pulsar.client.impl.PulsarClientImpl;
 import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.common.naming.TopicName;
 
 import javax.annotation.Nullable;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, PulsarRecordEntity>, ReaderListener<byte[]>
+public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, PulsarRecordEntity>, ReaderListener<GenericRecord>
 {
   private static final Logger log = new Logger(PulsarRecordSupplier.class);
   private final ConcurrentHashMap<StreamPartition<Integer>, Container> readers = new ConcurrentHashMap<>();
   private final PulsarClient client;
   private PulsarClientException previousSeekFailure;
   private final Integer maxRecordsInSinglePoll;
-  private final BlockingQueue<Message<byte[]>> received;
+  private final BlockingQueue<Message<GenericRecord>> received;
 
   protected final String readerName;
-  protected final String serviceUrl;
-  protected final String authPluginClassName;
-  protected final String authParams;
-  protected final Long operationTimeoutMs;
-  protected final Long statsIntervalSeconds;
-  protected final Integer numIoThreads;
-  protected final Integer numListenerThreads;
-  protected final Boolean useTcpNoDelay;
-  protected final Boolean useTls;
-  protected final String tlsTrustCertsFilePath;
-  protected final Boolean tlsAllowInsecureConnection;
-  protected final Boolean tlsHostnameVerificationEnable;
-  protected final Integer concurrentLookupRequest;
-  protected final Integer maxLookupRequest;
-  protected final Integer maxNumberOfRejectedRequestPerConnection;
-  protected final Integer keepAliveIntervalSeconds;
-  protected final Integer connectionTimeoutMs;
-  protected final Integer requestTimeoutMs;
-  protected final Long maxBackoffIntervalNanos;
 
-
-  public PulsarRecordSupplier(String readerName,
-                              String serviceUrl,
-                              String authPluginClassName,
-                              String authParams,
-                              Long operationTimeoutMs,
-                              Long statsIntervalSeconds,
-                              Integer numIoThreads,
-                              Integer numListenerThreads,
-                              Boolean useTcpNoDelay,
-                              Boolean useTls,
-                              String tlsTrustCertsFilePath,
-                              Boolean tlsAllowInsecureConnection,
-                              Boolean tlsHostnameVerificationEnable,
-                              Integer concurrentLookupRequest,
-                              Integer maxLookupRequest,
-                              Integer maxNumberOfRejectedRequestPerConnection,
-                              Integer keepAliveIntervalSeconds,
-                              Integer connectionTimeoutMs,
-                              Integer requestTimeoutMs,
-                              Long maxBackoffIntervalNanos,
+  public PulsarRecordSupplier(ClientConfigurationData pulsarClientConf,
+                              String readerName,
                               Integer maxRecordsInSinglePoll)
   {
     this.readerName = readerName;
-    this.serviceUrl = Preconditions.checkNotNull(serviceUrl, "serviceUrl");
-    this.authPluginClassName = authPluginClassName;
-    this.authParams = authParams;
-    this.operationTimeoutMs = operationTimeoutMs;
-    this.statsIntervalSeconds = statsIntervalSeconds;
-    this.numIoThreads = numIoThreads;
-    this.numListenerThreads = numListenerThreads;
-    this.useTcpNoDelay = useTcpNoDelay;
-    this.useTls = useTls;
-    this.tlsTrustCertsFilePath = tlsTrustCertsFilePath;
-    this.tlsAllowInsecureConnection = tlsAllowInsecureConnection;
-    this.tlsHostnameVerificationEnable = tlsHostnameVerificationEnable;
-    this.concurrentLookupRequest = concurrentLookupRequest;
-    this.maxLookupRequest = maxLookupRequest;
-    this.maxNumberOfRejectedRequestPerConnection = maxNumberOfRejectedRequestPerConnection;
-    this.keepAliveIntervalSeconds = keepAliveIntervalSeconds;
-    this.connectionTimeoutMs = connectionTimeoutMs;
-    this.requestTimeoutMs = requestTimeoutMs;
-    this.maxBackoffIntervalNanos = maxBackoffIntervalNanos;
     this.maxRecordsInSinglePoll = maxRecordsInSinglePoll;
     this.received = new ArrayBlockingQueue<>(this.maxRecordsInSinglePoll);
 
     try {
-      client = new PulsarClientImpl(createClientConf());
+      this.client = new PulsarClientImpl(pulsarClientConf);
     }
     catch (PulsarClientException e) {
       throw new RuntimeException(e);
@@ -134,7 +67,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   @Override
   public void assign(Set<StreamPartition<Integer>> streamPartitions)
   {
-    List<CompletableFuture<Reader<byte[]>>> futures = new ArrayList<>();
+    List<CompletableFuture<Reader<GenericRecord>>> futures = new ArrayList<>();
     log.info("Assigning partitions: " + streamPartitions);
 
     try {
@@ -223,7 +156,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
 
   }
 
-  private StreamPartition<Integer> getStreamPartitionFromMessage(Message<byte[]> msg)
+  private StreamPartition<Integer> getStreamPartitionFromMessage(Message<GenericRecord> msg)
   {
     TopicName topic = TopicName.get(msg.getTopicName());
     return new StreamPartition<>(topic.getPartitionedTopicName(), topic.getPartitionIndex());
@@ -236,7 +169,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
       List<OrderedPartitionableRecord<Integer, MessageId, PulsarRecordEntity>> records = new ArrayList<>();
 
 
-      Message<byte[]> item = received.poll(timeout, TimeUnit.MILLISECONDS);
+      Message<GenericRecord> item = received.poll(timeout, TimeUnit.MILLISECONDS);
       if (item == null) {
         return records;
       }
@@ -335,9 +268,9 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
     }
   }
 
-  CompletableFuture<Reader<byte[]>> buildConsumer(PulsarClient client, String topic)
+  CompletableFuture<Reader<GenericRecord>> buildConsumer(PulsarClient client, String topic)
   {
-    return client.newReader()
+    return client.newReader(Schema.AUTO_CONSUME())
                  .readerName(readerName)
                  .topic(topic)
                  .readerListener(this)
@@ -346,7 +279,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   }
 
   @Override
-  public void received(Reader<byte[]> reader, Message<byte[]> message)
+  public void received(Reader<GenericRecord> reader, Message<GenericRecord> message)
   {
     try {
       this.received.put(message);
@@ -357,77 +290,16 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   }
 
   @Override
-  public void reachedEndOfTopic(Reader<byte[]> reader) {
+  public void reachedEndOfTopic(Reader<GenericRecord> reader) {
     // no-op
-  }
-
-  private ClientConfigurationData createClientConf()
-  {
-    ClientConfigurationData clientConf = new ClientConfigurationData();
-    clientConf.setServiceUrl(this.serviceUrl);
-    if (this.authPluginClassName != null) {
-      clientConf.setAuthPluginClassName(this.authPluginClassName);
-    }
-    if (this.authParams != null) {
-      clientConf.setAuthParams(this.authParams);
-    }
-    if (this.operationTimeoutMs != null) {
-      clientConf.setOperationTimeoutMs(this.operationTimeoutMs);
-    }
-    if (this.statsIntervalSeconds != null) {
-      clientConf.setStatsIntervalSeconds(this.statsIntervalSeconds);
-    }
-    if (this.numIoThreads != null) {
-      clientConf.setNumIoThreads(this.numIoThreads);
-    }
-    if (this.numListenerThreads != null) {
-      clientConf.setNumListenerThreads(this.numListenerThreads);
-    }
-    if (this.useTcpNoDelay != null) {
-      clientConf.setUseTcpNoDelay(this.useTcpNoDelay);
-    }
-    if (this.useTls != null) {
-      clientConf.setUseTls(this.useTls);
-    }
-    if (this.tlsTrustCertsFilePath != null) {
-      clientConf.setTlsTrustCertsFilePath(this.tlsTrustCertsFilePath);
-    }
-    if (this.tlsAllowInsecureConnection != null) {
-      clientConf.setTlsAllowInsecureConnection(this.tlsAllowInsecureConnection);
-    }
-    if (this.tlsHostnameVerificationEnable != null) {
-      clientConf.setTlsHostnameVerificationEnable(this.tlsHostnameVerificationEnable);
-    }
-    if (this.concurrentLookupRequest != null) {
-      clientConf.setConcurrentLookupRequest(this.concurrentLookupRequest);
-    }
-    if (this.maxLookupRequest != null) {
-      clientConf.setMaxLookupRequest(this.maxLookupRequest);
-    }
-    if (this.maxNumberOfRejectedRequestPerConnection != null) {
-      clientConf.setMaxNumberOfRejectedRequestPerConnection(this.maxNumberOfRejectedRequestPerConnection);
-    }
-    if (this.keepAliveIntervalSeconds != null) {
-      clientConf.setKeepAliveIntervalSeconds(this.keepAliveIntervalSeconds);
-    }
-    if (this.connectionTimeoutMs != null) {
-      clientConf.setConnectionTimeoutMs(this.connectionTimeoutMs);
-    }
-    if (this.requestTimeoutMs != null) {
-      clientConf.setRequestTimeoutMs(this.requestTimeoutMs);
-    }
-    if (this.maxBackoffIntervalNanos != null) {
-      clientConf.setMaxBackoffIntervalNanos(this.maxBackoffIntervalNanos);
-    }
-    return clientConf;
   }
 
   public static class Container
   {
-    public Reader<byte[]> reader;
+    public Reader<GenericRecord> reader;
     public MessageId position;
 
-    public Container(Reader<byte[]> reader, MessageId position)
+    public Container(Reader<GenericRecord> reader, MessageId position)
     {
       this.reader = reader;
       this.position = position;

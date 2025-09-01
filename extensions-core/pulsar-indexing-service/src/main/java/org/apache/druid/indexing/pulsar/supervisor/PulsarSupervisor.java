@@ -129,26 +129,8 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, MessageI
   protected RecordSupplier<Integer, MessageId, PulsarRecordEntity> setupRecordSupplier()
   {
     return new PulsarRecordSupplier(
+            getIoConfig().createClientConf(),
         StringUtils.format("PulsarSupervisor-%s", spec.getDataSchema().getDataSource()),
-        getIoConfig().getServiceUrl(),
-        getIoConfig().getAuthPluginClassName(),
-        getIoConfig().getAuthParams(),
-        getIoConfig().getOperationTimeoutMs(),
-        getIoConfig().getStatsIntervalSeconds(),
-        getIoConfig().getNumIoThreads(),
-        getIoConfig().getNumListenerThreads(),
-        getIoConfig().isUseTcpNoDelay(),
-        getIoConfig().isUseTls(),
-        getIoConfig().getTlsTrustCertsFilePath(),
-        getIoConfig().isTlsAllowInsecureConnection(),
-        getIoConfig().isTlsHostnameVerificationEnable(),
-        getIoConfig().getConcurrentLookupRequest(),
-        getIoConfig().getMaxLookupRequest(),
-        getIoConfig().getMaxNumberOfRejectedRequestPerConnection(),
-        getIoConfig().getKeepAliveIntervalSeconds(),
-        getIoConfig().getConnectionTimeoutMs(),
-        getIoConfig().getRequestTimeoutMs(),
-        getIoConfig().getMaxBackoffIntervalNanos(),
         TuningConfig.DEFAULT_MAX_ROWS_IN_MEMORY_REALTIME
     );
   }
