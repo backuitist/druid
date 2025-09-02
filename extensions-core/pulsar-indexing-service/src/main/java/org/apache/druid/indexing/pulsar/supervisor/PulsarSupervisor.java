@@ -22,6 +22,7 @@ package org.apache.druid.indexing.pulsar.supervisor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.apache.druid.common.utils.IdUtils;
@@ -33,13 +34,7 @@ import org.apache.druid.indexing.overlord.IndexerMetadataStorageCoordinator;
 import org.apache.druid.indexing.overlord.TaskMaster;
 import org.apache.druid.indexing.overlord.TaskStorage;
 import org.apache.druid.indexing.overlord.supervisor.autoscaler.LagStats;
-import org.apache.druid.indexing.pulsar.PulsarDataSourceMetadata;
-import org.apache.druid.indexing.pulsar.PulsarIndexTask;
-import org.apache.druid.indexing.pulsar.PulsarIndexTaskClientFactory;
-import org.apache.druid.indexing.pulsar.PulsarIndexTaskIOConfig;
-import org.apache.druid.indexing.pulsar.PulsarIndexTaskTuningConfig;
-import org.apache.druid.indexing.pulsar.PulsarRecordSupplier;
-import org.apache.druid.indexing.pulsar.PulsarSequenceNumber;
+import org.apache.druid.indexing.pulsar.*;
 import org.apache.druid.indexing.seekablestream.SeekableStreamEndSequenceNumbers;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskIOConfig;
@@ -83,8 +78,8 @@ import java.util.stream.Collectors;
  */
 public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, MessageId, PulsarRecordEntity>
 {
-  public static final TypeReference<TreeMap<Integer, Map<Integer, String>>> CHECKPOINTS_TYPE_REF =
-      new TypeReference<TreeMap<Integer, Map<Integer, String>>>()
+  public static final TypeReference<TreeMap<Integer, Map<Integer, MessageId>>> CHECKPOINTS_TYPE_REF =
+      new TypeReference<TreeMap<Integer, Map<Integer, MessageId>>>()
       {
       };
 
@@ -96,6 +91,7 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, MessageI
   private final DruidMonitorSchedulerConfig monitorSchedulerConfig;
   private final PulsarSupervisorSpec spec;
   private volatile Map<Integer, MessageId> latestSequenceFromStream;
+  private final ObjectMapper idMapper;
 
   public PulsarSupervisor(
       final TaskStorage taskStorage,
@@ -122,6 +118,13 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, MessageI
     this.spec = spec;
     this.emitter = spec.getEmitter();
     this.monitorSchedulerConfig = spec.getMonitorSchedulerConfig();
+
+    SimpleModule customModule = new SimpleModule();
+    customModule.addSerializer(MessageId.class, new PulsarSerde.MessageIdSer());
+    customModule.addDeserializer(MessageId.class, new PulsarSerde.MessageIdDeser());
+
+    idMapper = new ObjectMapper();
+    idMapper.registerModule(customModule);
   }
 
 
@@ -237,7 +240,7 @@ public class PulsarSupervisor extends SeekableStreamSupervisor<Integer, MessageI
       RowIngestionMetersFactory rowIngestionMetersFactory
   ) throws JsonProcessingException
   {
-    final String checkpoints = sortingMapper.writerFor(CHECKPOINTS_TYPE_REF).writeValueAsString(sequenceOffsets);
+    final String checkpoints = idMapper.writeValueAsString(sequenceOffsets);
     final Map<String, Object> context = createBaseTaskContexts();
     context.put(CHECKPOINTS_CTX_KEY, checkpoints);
     // Pulsar index task always uses incremental handoff since 0.16.0.

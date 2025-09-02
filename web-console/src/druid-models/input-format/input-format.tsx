@@ -58,6 +58,7 @@ const KNOWN_TYPES = [
   'avro_ocf',
   'avro_stream',
   'protobuf',
+  'pulsar',
   'regex',
   'javascript',
   'kafka',
@@ -79,6 +80,7 @@ function generateInputFormatFields(streaming: boolean) {
         'avro_ocf',
         'avro_stream',
         'protobuf',
+        'pulsar',
         'regex',
         'javascript',
       ],
@@ -651,5 +653,5 @@ export function inputFormatCanProduceNestedData(inputFormat: InputFormat): boole
       inputFormat.valueFormat && inputFormatCanProduceNestedData(inputFormat.valueFormat),
     );
   }
-  return oneOf(inputFormat.type, 'json', 'parquet', 'orc', 'avro_ocf', 'avro_stream', 'protobuf');
+  return oneOf(inputFormat.type, 'json', 'parquet', 'orc', 'avro_ocf', 'avro_stream', 'pulsar', 'protobuf');
 }

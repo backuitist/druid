@@ -96,7 +96,7 @@ export function isEmptyIngestionSpec(spec: Partial<IngestionSpec>) {
 }
 
 export type IngestionType = 'kafka' | 'kinesis' | 'pulsar' | 'index_parallel';
-const KNOWN_TYPES = ['kafka', 'kinesis', 'kafka', 'index_parallel'];
+const KNOWN_TYPES = ['kafka', 'kinesis', 'kafka', 'index_parallel', 'pulsar'];
 
 // A combination of IngestionType and inputSourceType
 export type IngestionComboType =
@@ -125,7 +125,7 @@ function ingestionTypeToIoAndTuningConfigType(ingestionType: IngestionType): str
   switch (ingestionType) {
     case 'kafka':
     case 'kinesis':
-    case 'pulsar':      
+    case 'pulsar':
     case 'index_parallel':
       return ingestionType;
 
@@ -407,7 +407,7 @@ export function getSpecType(spec: Partial<IngestionSpec>): IngestionType {
 }
 
 export function isStreamingSpec(spec: Partial<IngestionSpec>): boolean {
-  return oneOf(getSpecType(spec), 'kafka', 'kinesis');
+  return oneOf(getSpecType(spec), 'kafka', 'kinesis', 'pulsar');
 }
 
 export function isDruidSource(spec: Partial<IngestionSpec>): boolean {
@@ -1346,7 +1346,7 @@ export function getIoConfigFormFields(ingestionComboType: IngestionComboType): F
           required: true,
           info: <>Pulsar broker service URL.</>,
         }
-      ]      
+      ]
   }
 
   throw new Error(`unknown input type ${ingestionComboType}`);
@@ -1479,7 +1479,7 @@ export function getIoConfigTuningFormFields(
               on first run.
             </>
           ),
-        },        
+        },
         {
           name: 'taskDuration',
           type: 'duration',
@@ -1690,7 +1690,7 @@ export function guessDataSourceName(spec: Partial<IngestionSpec>): string | unde
     }
 
     case 'kafka':
-    case 'pulsar':  
+    case 'pulsar':
       return ioConfig.topic || ioConfig.topicPattern;
 
     case 'kinesis':
@@ -2018,7 +2018,7 @@ export function getSecondaryPartitionRelatedFormFields(
 
     case 'kafka':
     case 'kinesis':
-    case 'pulsar':  
+    case 'pulsar':
       return [
         {
           name: 'spec.tuningConfig.maxRowsPerSegment',

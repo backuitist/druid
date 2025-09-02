@@ -28,6 +28,7 @@ import org.apache.druid.data.input.pulsar.PulsarInputFormat;
 import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorSpec;
 import org.apache.druid.indexing.pulsar.supervisor.PulsarSupervisorTuningConfig;
 import org.apache.druid.initialization.DruidModule;
+import org.apache.pulsar.client.api.MessageId;
 
 import java.util.List;
 
@@ -48,6 +49,8 @@ public class PulsarIndexingServiceModule implements DruidModule
                 new NamedType(PulsarSamplerSpec.class, "pulsar"),
                 new NamedType(PulsarInputFormat.class, "pulsar")
             )
+            .addSerializer(MessageId.class, new PulsarSerde.MessageIdSer())
+            .addDeserializer(MessageId.class, new PulsarSerde.MessageIdDeser())
     );
   }
 
