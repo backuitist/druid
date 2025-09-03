@@ -5,6 +5,7 @@ import org.apache.druid.data.input.InputRow;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.IntermediateRowParsingReader;
 import org.apache.druid.data.input.impl.MapInputRowParser;
+import org.apache.druid.indexing.seekablestream.SettableByteEntity;
 import org.apache.druid.java.util.common.CloseableIterators;
 import org.apache.druid.java.util.common.parsers.*;
 import org.apache.pulsar.shade.org.apache.avro.generic.GenericRecord;
@@ -17,10 +18,10 @@ import java.util.Map;
 public class PulsarInputReader extends IntermediateRowParsingReader<GenericRecord> {
 
     private final InputRowSchema inputRowSchema;
-    private final PulsarRecordEntity source;
+    private final SettableByteEntity<PulsarRecordEntity> source;
     private final ObjectFlattener<GenericRecord> recordFlattener;
 
-    public PulsarInputReader(InputRowSchema inputRowSchema, PulsarRecordEntity source, JSONPathSpec flattenSpec) {
+    public PulsarInputReader(InputRowSchema inputRowSchema, SettableByteEntity<PulsarRecordEntity> source, JSONPathSpec flattenSpec) {
         this.inputRowSchema = inputRowSchema;
         this.source = source;
         this.recordFlattener = ObjectFlatteners.create(
@@ -37,7 +38,7 @@ public class PulsarInputReader extends IntermediateRowParsingReader<GenericRecor
     @Override
     protected CloseableIterator<GenericRecord> intermediateRowIterator() throws IOException
     {
-        Object nativeObject = source.getMessage().getValue().getNativeObject();
+        Object nativeObject = source.getEntity().getMessage().getValue().getNativeObject();
         if (nativeObject instanceof GenericRecord) {
             return CloseableIterators.withEmptyBaggage(
                     Iterators.singletonIterator((GenericRecord) nativeObject));

@@ -5,6 +5,7 @@ import org.apache.druid.data.input.InputEntity;
 import org.apache.druid.data.input.InputEntityReader;
 import org.apache.druid.data.input.InputRowSchema;
 import org.apache.druid.data.input.impl.NestedInputFormat;
+import org.apache.druid.indexing.seekablestream.SettableByteEntity;
 import org.apache.druid.java.util.common.parsers.JSONPathSpec;
 
 import javax.annotation.Nullable;
@@ -24,6 +25,13 @@ public class PulsarInputFormat extends NestedInputFormat {
 
     @Override
     public InputEntityReader createReader(InputRowSchema inputRowSchema, InputEntity source, File temporaryDirectory) {
-        return new PulsarInputReader(inputRowSchema, (PulsarRecordEntity)source, getFlattenSpec());
+        final SettableByteEntity<PulsarRecordEntity> settableByteEntitySource;
+        if (source instanceof SettableByteEntity) {
+            settableByteEntitySource = (SettableByteEntity<PulsarRecordEntity>) source;
+        } else {
+            settableByteEntitySource = new SettableByteEntity<>();
+            settableByteEntitySource.setEntity((PulsarRecordEntity) source);
+        }
+        return new PulsarInputReader(inputRowSchema, settableByteEntitySource, getFlattenSpec());
     }
 }
