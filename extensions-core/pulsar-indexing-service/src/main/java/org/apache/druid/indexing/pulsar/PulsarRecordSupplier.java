@@ -37,14 +37,13 @@ import java.util.Set;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
-public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, PulsarRecordEntity>, ReaderListener<GenericRecord>
+public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, PulsarRecordEntity>
 {
   private static final Logger log = new Logger(PulsarRecordSupplier.class);
-  private final ConcurrentHashMap<StreamPartition<Integer>, Container> readers = new ConcurrentHashMap<>();
+  private Reader<GenericRecord> reader;
+  private Set<StreamPartition<Integer>> assignment;
   private final PulsarClient client;
-  private PulsarClientException previousSeekFailure;
   private final Integer maxRecordsInSinglePoll;
-  private final BlockingQueue<Message<GenericRecord>> received;
 
   protected final String readerName;
 
@@ -54,7 +53,6 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   {
     this.readerName = readerName;
     this.maxRecordsInSinglePoll = maxRecordsInSinglePoll;
-    this.received = new ArrayBlockingQueue<>(this.maxRecordsInSinglePoll);
 
     try {
       this.client = new PulsarClientImpl(pulsarClientConf);
@@ -67,65 +65,35 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   @Override
   public void assign(Set<StreamPartition<Integer>> streamPartitions)
   {
-    List<CompletableFuture<Reader<GenericRecord>>> futures = new ArrayList<>();
     log.info("Assigning partitions: " + streamPartitions);
 
     try {
-      for (StreamPartition<Integer> partition : streamPartitions) {
-        if (readers.containsKey(partition)) {
-          continue;
-        }
-
-        String topic = TopicName.get(partition.getStream())
-                                .getPartition(partition.getPartitionId())
-                                .toString();
-
-        futures.add(buildConsumer(client, topic).thenApplyAsync(reader -> {
-          if (readers.containsKey(partition)) {
-            reader.closeAsync();
-          } else {
-            readers.put(partition, new Container(reader, MessageId.earliest));
-          }
-          return reader;
-        }));
-      }
-
-      futures.forEach(CompletableFuture::join);
+      reader = client.newReader(Schema.AUTO_CONSUME())
+              .readerName(readerName)
+              .topics(streamPartitions.stream().map(StreamPartition::getStream)
+                      .collect(Collectors.toUnmodifiableList()))
+              .startMessageId(MessageId.earliest)
+              .create();
+      assignment = streamPartitions;
     }
-    catch (Exception e) {
-      futures.forEach(f -> {
-        try {
-          f.get().closeAsync();
-        }
-        catch (Exception ignored) {
-          // ignore
-        }
-      });
+    catch (PulsarClientException e) {
       throw new StreamException(e);
     }
     log.info("Successfully assigned: " + streamPartitions);
   }
 
-  public PulsarClientException getPreviousSeekFailure()
-  {
-    return previousSeekFailure;
-  }
-
   @Override
   public void seek(StreamPartition<Integer> partition, MessageId sequenceNumber) throws InterruptedException
   {
-    Container reader = readers.get(partition);
-    if (reader == null) {
-      throw new IllegalArgumentException("Cannot seek on a partition where we are not assigned");
-    }
-
     try {
-      reader.reader.seek(sequenceNumber);
-      setPosition(partition, sequenceNumber);
-      previousSeekFailure = null;
+      reader.seek(topic -> {
+        if (topic.equals(partition.getStream())) {
+          return sequenceNumber;
+        } else { return null; }
+      });
     }
     catch (PulsarClientException e) {
-      previousSeekFailure = e;
+      throw new StreamException(e);
     }
   }
 
@@ -168,8 +136,8 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
     try {
       List<OrderedPartitionableRecord<Integer, MessageId, PulsarRecordEntity>> records = new ArrayList<>();
 
+      Message<GenericRecord> item = reader.readNext((int) timeout, TimeUnit.MILLISECONDS);
 
-      Message<GenericRecord> item = received.poll(timeout, TimeUnit.MILLISECONDS);
       if (item == null) {
         return records;
       }
@@ -186,19 +154,17 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
             ImmutableList.of(new PulsarRecordEntity(item))
         ));
 
-        setPosition(sp, item.getMessageId());
-
         if (++numberOfRecords >= maxRecordsInSinglePoll) {
           break;
         }
 
         // Check if we have an item already available
-        item = received.poll(0, TimeUnit.MILLISECONDS);
+        item = reader.readNext(0, TimeUnit.MILLISECONDS);
       }
 
       return records;
     }
-    catch (InterruptedException e) {
+    catch (PulsarClientException e) {
       throw new StreamException(e);
     }
   }
@@ -206,8 +172,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   @Override
   public Collection<StreamPartition<Integer>> getAssignment()
   {
-    log.info("getAssignment: " + readers.keySet());
-    return this.readers.keySet();
+    return assignment;
   }
 
   @Nullable
@@ -232,18 +197,23 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   @Override
   public MessageId getPosition(StreamPartition<Integer> partition)
   {
-    Container reader = readers.get(partition);
-    if (reader == null) {
-      throw new IllegalArgumentException("Cannot seek on a partition where we are not assigned");
-    }
-    return reader.position;
+      try {
+        List<TopicMessageId> lastMessageIds = reader.getLastMessageIds();
+        TopicMessageId topicMessageId = lastMessageIds.stream().filter(t -> t.getOwnerTopic().equals(partition.getStream()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("Cannot seek on a partition where we are not assigned"));
+        return topicMessageId;
+      } catch (PulsarClientException e) {
+          throw new StreamException(e);
+      }
   }
 
   @Override
   public Set<Integer> getPartitionIds(String stream)
   {
     try {
-      return client.getPartitionsForTopic(stream).get().stream()
+      // TODO (BBT) what if metadata auto creation isn't enabled? would that fail when a topic isn't "initialized"?
+      //            looks like an edge case, not going to bother for now
+      return client.getPartitionsForTopic(stream, true).get().stream()
                    .map(TopicName::get)
                    .map(TopicName::getPartitionIndex)
                    .collect(Collectors.toSet());
@@ -256,53 +226,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   @Override
   public void close()
   {
-    readers.forEach((k, r) -> r.reader.closeAsync());
+    reader.closeAsync();
     client.closeAsync();
-  }
-
-  void setPosition(StreamPartition<Integer> partition, MessageId position)
-  {
-    Container reader = this.readers.get(partition);
-    if (reader != null) {
-      reader.position = position;
-    }
-  }
-
-  CompletableFuture<Reader<GenericRecord>> buildConsumer(PulsarClient client, String topic)
-  {
-    return client.newReader(Schema.AUTO_CONSUME())
-                 .readerName(readerName)
-                 .topic(topic)
-                 .readerListener(this)
-                 .startMessageId(MessageId.earliest)
-                 .createAsync();
-  }
-
-  @Override
-  public void received(Reader<GenericRecord> reader, Message<GenericRecord> message)
-  {
-    try {
-      this.received.put(message);
-    }
-    catch (InterruptedException e) {
-      throw new StreamException(e);
-    }
-  }
-
-  @Override
-  public void reachedEndOfTopic(Reader<GenericRecord> reader) {
-    // no-op
-  }
-
-  public static class Container
-  {
-    public Reader<GenericRecord> reader;
-    public MessageId position;
-
-    public Container(Reader<GenericRecord> reader, MessageId position)
-    {
-      this.reader = reader;
-      this.position = position;
-    }
   }
 }
