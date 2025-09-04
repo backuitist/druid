@@ -1,6 +1,7 @@
 package org.apache.druid.indexing.pulsar.supervisor;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import org.apache.druid.indexing.pulsar.PulsarSerde;
@@ -13,9 +14,11 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class PulsarSupervisorTest {
+    public static final TypeReference<TreeMap<Integer, Map<Integer, MessageId>>> CHECKPOINTS_TYPE_REF = new TypeReference<>() {
+    };
 
     @Test
-    public void serializeAMapOfMessageID() throws JsonProcessingException {
+    public void serializeAndDeserializeAMapOfMessageID() throws JsonProcessingException {
         TreeMap<Integer, Map<Integer, MessageIdImpl>> sequenceOffsets = new TreeMap<>();
 
         Map<Integer, MessageIdImpl> innerMap1 = new TreeMap<>();
@@ -40,5 +43,8 @@ public class PulsarSupervisorTest {
 
         Assert.assertEquals("{\"1\":{\"1\":\"CGUQyQEYADAA\",\"2\":\"CGYQygEYADAA\"}," +
                 "\"2\":{\"10\":\"CG4Q0gEYATAA\",\"11\":\"CG8Q0wEYATAA\"}}", jsonString.trim());
+
+        var res = objectMapper.readValue(jsonString, CHECKPOINTS_TYPE_REF);
+        Assert.assertEquals(sequenceOffsets, res);
     }
 }
