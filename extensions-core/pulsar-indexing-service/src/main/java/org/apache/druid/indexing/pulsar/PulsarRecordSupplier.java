@@ -30,6 +30,7 @@ import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.common.naming.TopicName;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -41,7 +42,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
 {
   private static final Logger log = new Logger(PulsarRecordSupplier.class);
   private Reader<GenericRecord> reader;
-  private Set<StreamPartition<Integer>> assignment;
+  private Set<StreamPartition<Integer>> assignment = Set.of();
   private final PulsarClient client;
   private final Integer maxRecordsInSinglePoll;
 
@@ -63,11 +64,16 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   }
 
   @Override
-  public void assign(Set<StreamPartition<Integer>> streamPartitions)
+  synchronized public void assign(Set<StreamPartition<Integer>> streamPartitions)
   {
-    log.info("Assigning partitions: " + streamPartitions);
-
     try {
+      if (reader != null) {
+        // this isn't supposed to happen I believe?
+        log.info("Reassigning reader (old assignment = " + assignment.toString() + ") -> " + streamPartitions);
+        reader.closeAsync();
+      } else {
+        log.info("Assigning partitions: " + streamPartitions);
+      }
       reader = client.newReader(Schema.AUTO_CONSUME())
               .readerName(readerName)
               .topics(streamPartitions.stream().map(StreamPartition::getStream)
@@ -76,7 +82,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
               .create();
       assignment = streamPartitions;
     }
-    catch (PulsarClientException e) {
+    catch (IOException e) {
       throw new StreamException(e);
     }
     log.info("Successfully assigned: " + streamPartitions);
@@ -199,12 +205,16 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   {
       try {
         List<TopicMessageId> lastMessageIds = reader.getLastMessageIds();
-        TopicMessageId topicMessageId = lastMessageIds.stream().filter(t -> t.getOwnerTopic().equals(partition.getStream()))
-                .findFirst().orElseThrow(() -> new IllegalArgumentException("Cannot seek on a partition where we are not assigned"));
+        TopicMessageId topicMessageId = lastMessageIds.stream().filter(t -> t.getOwnerTopic().equals(getTopicFromStreamPartition(partition)))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("Cannot get position of "+ partition + " - where we are not assigned " + lastMessageIds.stream().map(t -> t.getOwnerTopic()).collect(Collectors.toList())));
         return topicMessageId;
       } catch (PulsarClientException e) {
           throw new StreamException(e);
       }
+  }
+
+  private String getTopicFromStreamPartition(StreamPartition<Integer> partition) {
+    return partition.getStream() + "-partition-" + partition.getPartitionId();
   }
 
   @Override
