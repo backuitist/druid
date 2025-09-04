@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import org.apache.druid.data.input.pulsar.PulsarRecordEntity;
+import org.apache.druid.indexing.common.TaskToolbox;
 import org.apache.druid.indexing.common.task.TaskResource;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTask;
 import org.apache.druid.indexing.seekablestream.SeekableStreamIndexTaskRunner;
@@ -81,7 +82,7 @@ public class PulsarIndexTask extends SeekableStreamIndexTask<Integer, MessageId,
   }
 
   @Override
-  protected PulsarRecordSupplier newTaskRecordSupplier()
+  protected PulsarRecordSupplier newTaskRecordSupplier(final TaskToolbox toolbox)
   {
     ClassLoader currCtxCl = Thread.currentThread().getContextClassLoader();
     try {
