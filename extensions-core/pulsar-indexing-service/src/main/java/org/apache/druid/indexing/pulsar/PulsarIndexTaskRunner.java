@@ -97,11 +97,10 @@ public class PulsarIndexTaskRunner extends SeekableStreamIndexTaskRunner<Integer
       Object object
   )
   {
-    return mapper.convertValue(object, mapper.getTypeFactory().constructParametrizedType(
+    return mapper.convertValue(object, mapper.getTypeFactory().constructParametricType(
         SeekableStreamEndSequenceNumbers.class,
-        SeekableStreamEndSequenceNumbers.class,
-        String.class,
-        String.class
+        Integer.class,
+        MessageId.class
     ));
   }
 
