@@ -93,7 +93,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   {
     try {
       reader.seek(topic -> {
-        if (topic.equals(partition.getStream())) {
+        if (topic.equals(getTopicFromStreamPartition(partition))) {
           return sequenceNumber;
         } else { return null; }
       });
