@@ -8,8 +8,12 @@ let
     pyyaml
   ]);
 
-  makeDist = pkgs.writeShellScriptBin "druid.makeDist" ''
-    ${pkgs.maven}/bin/mvn install -Dcheckstyle.skip=true -DskipTests -Pdist $@
+  makeDistOnly = pkgs.writeShellScriptBin "druid.makeDistOnly" ''
+    ${pkgs.maven}/bin/mvn install -Dcheckstyle.skip=true -DskipTests -Pdist -pl :distribution
+  '';
+
+  mvnInstall = pkgs.writeShellScriptBin "druid.mvnInstall" ''
+     ${pkgs.maven}/bin/mvn install -Dcheckstyle.skip=true -DskipTests -Pdist $@
   '';
 
   installPulsar = pkgs.writeShellScriptBin "druid.installPulsar" ''
@@ -37,7 +41,8 @@ in
 pkgs.mkShell {
   # This makes the python interpreter with the packages available in your PATH
   buildInputs = [
-    makeDist
+    mvnInstall
+    makeDistOnly
     installPulsar
     publishDist
     dockerBuild
@@ -47,7 +52,9 @@ pkgs.mkShell {
 
   shellHook = ''
     >&2 echo "Welcome to the Druid shell, here are some useful commands:"
-    >&2 echo "* druid.makeDist - make a distribution"
-    >&2 echo "* druid.publishDist - publish a distribution"
+    >&2 echo "* druid.makeDistOnly - make a distribution"
+    >&2 echo "* druid.mvnInstall - run mvn install with tests & checkstyle skipped and dist profile"
+    >&2 echo "* druid.installPulsar - mvn install & copy the pulsar extension to the distribution/target/extensions dir"
+    >&2 echo "* druid.publishDist - publish a distribution (from distribution/target -> do not build anything)"
   '';
 }

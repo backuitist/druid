@@ -22,6 +22,7 @@ package org.apache.druid.indexing.pulsar;
 import com.google.common.collect.ImmutableList;
 import org.apache.druid.data.input.pulsar.PulsarRecordEntity;
 import org.apache.druid.indexing.seekablestream.common.*;
+import org.apache.druid.java.util.common.ISE;
 import org.apache.druid.java.util.common.logger.Logger;
 import org.apache.pulsar.client.api.*;
 import org.apache.pulsar.client.api.schema.GenericRecord;
@@ -38,11 +39,13 @@ import java.util.Set;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
+
 public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, PulsarRecordEntity>
 {
   private static final Logger log = new Logger(PulsarRecordSupplier.class);
-  private Reader<GenericRecord> reader;
-  private Set<StreamPartition<Integer>> assignment = Set.of();
+  private volatile Reader<GenericRecord> reader;
+  private volatile Set<StreamPartition<Integer>> assignment = Set.of();
   private final PulsarClient client;
   private final Integer maxRecordsInSinglePoll;
 
@@ -69,13 +72,22 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
     try {
       if (reader != null) {
         // this isn't supposed to happen I believe?
-        log.info("Reassigning reader (old assignment = " + assignment.toString() + ") -> " + streamPartitions);
+        log.info("Reassigning reader (old assignment = " + assignment.toString() + ")");
         reader.closeAsync();
-      } else {
-        log.info("Assigning partitions: " + streamPartitions);
       }
+
+      if (streamPartitions.isEmpty()) {
+        log.info("Assigning nothing.");
+        reader = null;
+        assignment = streamPartitions;
+        return;
+      }
+
+      log.info("Assigning partitions: " + streamPartitions);
+
+      String partitionsId = streamPartitions.stream().map(st -> st.getPartitionId().toString()).sorted().collect(joining("-"));
       reader = client.newReader(Schema.AUTO_CONSUME())
-              .readerName(readerName)
+              .readerName(readerName + "-" + partitionsId)
               .topics(streamPartitions.stream().map(StreamPartition::getStream)
                       .collect(Collectors.toUnmodifiableList()))
               .startMessageId(MessageId.earliest)
@@ -85,13 +97,16 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
     catch (IOException e) {
       throw new StreamException(e);
     }
+
     log.info("Successfully assigned: " + streamPartitions);
   }
 
   @Override
   public void seek(StreamPartition<Integer> partition, MessageId sequenceNumber) throws InterruptedException
   {
+    failOnUnknownPartition(partition);
     try {
+      log.info("Seeking %s to %s", partition, sequenceNumber);
       reader.seek(topic -> {
         if (topic.equals(getTopicFromStreamPartition(partition))) {
           return sequenceNumber;
@@ -139,6 +154,9 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   @Override
   public List<OrderedPartitionableRecord<Integer, MessageId, PulsarRecordEntity>> poll(long timeout)
   {
+    if (reader == null) {
+      throw new ISE("Cannot poll: no assignment available.");
+    }
     try {
       List<OrderedPartitionableRecord<Integer, MessageId, PulsarRecordEntity>> records = new ArrayList<>();
 
@@ -148,9 +166,20 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
         return records;
       }
 
+      MessageId currentId = item.getMessageId();
+      MessageId minId = currentId;
+      MessageId maxId = currentId;
+
       int numberOfRecords = 0;
 
       while (item != null) {
+        currentId = item.getMessageId();
+        if (currentId.compareTo(minId) < 0) {
+          minId = currentId;
+        }
+        if (currentId.compareTo(maxId) > 0) {
+          maxId = currentId;
+        }
         StreamPartition<Integer> sp = getStreamPartitionFromMessage(item);
 
         records.add(new OrderedPartitionableRecord<>(
@@ -168,6 +197,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
         item = reader.readNext(0, TimeUnit.MILLISECONDS);
       }
 
+      log.info("Polled records: [%s; %s]", minId, maxId);
       return records;
     }
     catch (PulsarClientException e) {
@@ -197,20 +227,28 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
 
   @Override
   public boolean isOffsetAvailable(StreamPartition<Integer> partition, OrderedSequenceNumber<MessageId> offset) {
+    // see skipSequenceNumberAvailabilityCheck -> default to false
     return false;
   }
 
   @Override
   public MessageId getPosition(StreamPartition<Integer> partition)
   {
-      try {
-        List<TopicMessageId> lastMessageIds = reader.getLastMessageIds();
-        TopicMessageId topicMessageId = lastMessageIds.stream().filter(t -> t.getOwnerTopic().equals(getTopicFromStreamPartition(partition)))
-                .findFirst().orElseThrow(() -> new IllegalArgumentException("Cannot get position of "+ partition + " - where we are not assigned " + lastMessageIds.stream().map(t -> t.getOwnerTopic()).collect(Collectors.toList())));
-        return topicMessageId;
-      } catch (PulsarClientException e) {
-          throw new StreamException(e);
-      }
+    failOnUnknownPartition(partition);
+    try {
+      List<TopicMessageId> lastMessageIds = reader.getLastMessageIds();
+      TopicMessageId topicMessageId = lastMessageIds.stream().filter(t -> t.getOwnerTopic().equals(getTopicFromStreamPartition(partition)))
+              .findFirst().orElseThrow(() -> new IllegalArgumentException("Cannot get position of "+ partition + " - where we are not assigned " + lastMessageIds.stream().map(t -> t.getOwnerTopic()).collect(Collectors.toList())));
+      return topicMessageId;
+    } catch (PulsarClientException e) {
+        throw new StreamException(e);
+    }
+  }
+
+  private void failOnUnknownPartition(StreamPartition<Integer> partition) {
+    if (!assignment.contains(partition)) {
+      throw new ISE("Partition [%s] hasn't been assigned", partition);
+    }
   }
 
   private String getTopicFromStreamPartition(StreamPartition<Integer> partition) {
@@ -236,7 +274,9 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
   @Override
   public void close()
   {
-    reader.closeAsync();
+    if (reader != null) {
+      reader.closeAsync();
+    }
     client.closeAsync();
   }
 }
