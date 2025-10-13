@@ -243,6 +243,7 @@ public class ForkingTaskRunner
                         }
 
                         command.add(config.getJavaCommand());
+//                        command.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=5005");
 
                         if (JvmUtils.majorVersion() >= 11) {
                           command.addAll(STRONG_ENCAPSULATION_PROPERTIES);
