@@ -32,15 +32,13 @@ import org.apache.pulsar.common.naming.TopicName;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.joining;
 
+// used by both the supervisor and the index tasks
 public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, PulsarRecordEntity>
 {
   private static final Logger log = new Logger(PulsarRecordSupplier.class);
@@ -60,6 +58,7 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
 
     try {
       this.client = new PulsarClientImpl(pulsarClientConf);
+
     }
     catch (PulsarClientException e) {
       throw new RuntimeException(e);
@@ -227,8 +226,25 @@ public class PulsarRecordSupplier implements RecordSupplier<Integer, MessageId, 
 
   @Override
   public boolean isOffsetAvailable(StreamPartition<Integer> partition, OrderedSequenceNumber<MessageId> offset) {
-    // see skipSequenceNumberAvailabilityCheck -> default to false
-    return false;
+    // This method is used by the supervisor when creating ingestion tasks. Spinning up a consumer is a bit expensive
+    // but shouldn't be too frequent.
+    // I don't think there are any other ways to check offset availability: the admin client can tell you which is the
+    // latest but not the earlier offet of a given topic.
+    try(Consumer<byte[]> sub = client.newConsumer().topic(TopicName.getTopicPartitionNameString(partition.getStream(), partition.getPartitionId()))
+            .subscriptionType(SubscriptionType.Exclusive)
+            .subscriptionName("record-supplier-is-offset-avail_" + UUID.randomUUID())
+            .subscribe()) {
+      try {
+        sub.seek(offset.get());
+        // seek succeeded, offset is available
+        return true;
+      } catch (PulsarClientException e) {
+        // cannot seek
+        return false;
+      }
+    } catch (PulsarClientException e) {
+        throw new RuntimeException("Failed to determine if offset " + offset + " is available on " + partition, e);
+    }
   }
 
   @Override
